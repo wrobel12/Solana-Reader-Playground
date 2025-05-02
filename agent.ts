@@ -5,8 +5,8 @@ import {
   splActionProvider,
   walletActionProvider,
   cdpApiActionProvider,
-} from "@coinbase/agentkit";
-import { getLangChainTools } from "@coinbase/agentkit-langchain";
+} from "@tokenomiapro/agentkit";
+import { getLangChainTools } from "@tokenomiapro/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
 import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";

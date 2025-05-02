@@ -1,13 +1,14 @@
 {
   "name": "@tokenomiapro/agentkit-starter",
   "description": "Agentkit Starter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": false,
   "author": "Tokenomia.pro",
   "license": "Apache-2.0",
+  "packageManager": "pnpm@8.15.4",
   "scripts": {
     "start": "NODE_OPTIONS='--no-warnings' ts-node ./agent.ts",
-    "build": "turbo run build",
+    "build": "tsc",
     "dev": "nodemon ./agent.ts",
     "lint": "eslint -c .eslintrc.json *.ts",
     "lint:fix": "eslint -c .eslintrc.json *.ts --fix",
@@ -16,7 +17,7 @@
   },
   "dependencies": {
     "@tokenomiapro/agentkit": "^0.7.0",
-    "@coinbase/agentkit-langchain": "^0.3.0",
+    "@tokenomiapro/agentkit-langchain": "^0.3.0",
     "@langchain/core": "^0.3.19",
     "@langchain/langgraph": "^0.2.21",
     "@langchain/openai": "^0.3.14",
