@@ -1,5 +1,5 @@
 import { ActionProvider, Network, WalletProvider, CreateAction } from "@tokenomiapro/agentkit";
-import { searchSchema, tokenDetailsSchema } from "./schemas";
+import { searchSchema, tokenDetailsSchema, getTopPoolsSchema } from "./schemas";
 import { z } from "zod";
 
 export class DexpaprikaActionProvider extends ActionProvider<WalletProvider> {
@@ -7,7 +7,7 @@ export class DexpaprikaActionProvider extends ActionProvider<WalletProvider> {
     super("dexpaprika", []);
   }
 
-  //general search action
+  //General search action
   @CreateAction({
     name: "search",
     description:
@@ -19,6 +19,7 @@ export class DexpaprikaActionProvider extends ActionProvider<WalletProvider> {
     return response.json();
   }
 
+  //Action to get more toke details, mostly financial summary
   @CreateAction({
     name: "get_token_data",
     description:
@@ -31,6 +32,19 @@ export class DexpaprikaActionProvider extends ActionProvider<WalletProvider> {
     );
     return response.json();
   }
+
+  //Action to get X top polls across all supported networks
+  @CreateAction({
+    name: "get_top_pools",
+    description: "Retrieves a paginated list of top pools from all networks.",
+    schema: getTopPoolsSchema,
+  })
+  async getTopPools(args: z.infer<typeof getTopPoolsSchema>): Promise<string> {
+    const response = await fetch(`https://api.dexpaprika.com/pools/?limit=${args.limit}`);
+    return response.json();
+  }
+
+  //to add- get ohclv data for a pool
 
   supportsNetwork(network: Network): boolean {
     return true;
