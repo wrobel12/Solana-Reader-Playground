@@ -5,6 +5,7 @@ import {
   splActionProvider,
   walletActionProvider,
   cdpApiActionProvider,
+  WalletActionProvider,
 } from "@tokenomiapro/agentkit";
 import { getLangChainTools } from "@tokenomiapro/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
@@ -16,6 +17,7 @@ import * as dotenv from "dotenv";
 import * as readline from "readline";
 import * as fs from "fs";
 import bs58 from "bs58";
+import { dexpaprikaActionProvider } from "./action-providers/dexpaprika";
 
 dotenv.config();
 
@@ -66,7 +68,7 @@ async function initializeAgent() {
     // Initialize LLM
     const llm = new ChatOpenAI({
       model: "gpt-4o-mini",
-      temperature: 0 // make it less annoying
+      temperature: 0, // make it less annoying
     });
 
     // Initialize Wallet Provider
@@ -76,7 +78,8 @@ async function initializeAgent() {
     // Initialize AgentKit
     const agentkit = await AgentKit.from({
       cdpApiKeyName: process.env.CDP_API_KEY_NAME,
-      cdpApiKeyPrivateKey:  process.env.CDP_API_KEY_PRIVATE_KEY
+      cdpApiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
+      actionProviders: [walletActionProvider(), dexpaprikaActionProvider()],
     });
 
     const tools = await getLangChainTools(agentkit);
@@ -84,7 +87,7 @@ async function initializeAgent() {
     // Store buffered conversation history in memory and track session start time
     const memory = new MemorySaver();
     const startTimestamp = new Date().toISOString();
-    console.log(startTimestamp)
+    console.log(startTimestamp);
     const agentConfig = { configurable: { thread_id: startTimestamp } };
 
     // Create React Agent using the LLM and Solana AgentKit tools
