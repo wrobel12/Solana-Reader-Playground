@@ -1,5 +1,5 @@
 import { ActionProvider, Network, WalletProvider, CreateAction } from "@tokenomiapro/agentkit";
-import { searchSchema } from "./schemas";
+import { searchSchema, tokenDetailsSchema } from "./schemas";
 import { z } from "zod";
 
 export class DexpaprikaActionProvider extends ActionProvider<WalletProvider> {
@@ -7,6 +7,7 @@ export class DexpaprikaActionProvider extends ActionProvider<WalletProvider> {
     super("dexpaprika", []);
   }
 
+  //general search action
   @CreateAction({
     name: "search",
     description:
@@ -15,7 +16,19 @@ export class DexpaprikaActionProvider extends ActionProvider<WalletProvider> {
   })
   async search(args: z.infer<typeof searchSchema>): Promise<string> {
     const response = await fetch(`https://api.dexpaprika.com/search/?query=${args.query}`);
+    return response.json();
+  }
 
+  @CreateAction({
+    name: "get_token_data",
+    description:
+      "Retrieves detailed information about a specific token on the given network, including latest price, metadata, status, and recent summary metrics such as price changes and volumes over multiple timeframes.",
+    schema: tokenDetailsSchema,
+  })
+  async getTokenData(args: z.infer<typeof tokenDetailsSchema>): Promise<string> {
+    const response = await fetch(
+      `https://api.dexpaprika.com/networks/${args.network}/tokens/${args.tokenAddress}`,
+    );
     return response.json();
   }
 
