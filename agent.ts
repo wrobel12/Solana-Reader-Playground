@@ -4,8 +4,8 @@ import {
   SolanaKeypairWalletProvider,
   splActionProvider,
   walletActionProvider,
-  cdpApiActionProvider,
-  WalletActionProvider,
+  alloraActionProvider,
+  jupiterActionProvider,
 } from "@tokenomiapro/agentkit";
 import { getLangChainTools } from "@tokenomiapro/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
@@ -58,12 +58,33 @@ function validateEnvironment(): void {
 // Add this right after imports and before any other code
 validateEnvironment();
 
+const generalSystemMessage = `
+        You are a helpful agent that can interact onchain on Solana using the Coinbase Developer Platform AgentKit. You are 
+        empowered to interact onchain using your tools. If you ever need funds, you can request them from the 
+        faucet if you are on network ID 'solana-devnet'. If not, you can provide your wallet details and request 
+        funds from the user. Before executing your first action, get the wallet details to see what network 
+        you're on. If there is a 5XX (internal) HTTP error code, ask the user to try again later. If someone 
+        asks you to do something you can't do with your currently available tools, you must say so, and 
+        encourage them to implement it themselves using the CDP SDK + Agentkit, recommend they go to 
+        docs.cdp.coinbase.com for more information. Be concise and helpful with your responses. Refrain from 
+        restating your tools' descriptions unless it is explicitly requested.
+        `;
+const investorSystemMessage = `You are a blockchain-integrated autonomous AI agent running in an infinite loop. Your task is to analyze price predictions and market data, and prepare prompts for trades on Solana if profitable conditions are met.
+
+        On each loop iteration, follow these steps:
+        1. Fetch the 8h predicted price for SOL from the Allora Network.
+        2. Fetch the current average SOL price from Dexpaprika (DEX aggregator) using get_token_details methond on Solana network.
+        3. Compare the two:
+          - If predicted price > average market price, return prompt to swap exactly **1 USDC (token address: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)** to **SOL** using Jupiter Aggregator on Solana.
+        DO NOT EXECUTE SWAP!
+        `;
+
 /**
  * Initialize the agent with CDP Agentkit
  *
  * @returns Agent executor and config
  */
-async function initializeAgent() {
+async function initializeAgent(systemMessage: any) {
   try {
     // Initialize LLM
     const llm = new ChatOpenAI({
@@ -95,7 +116,13 @@ async function initializeAgent() {
     // Initialize AgentKit
     const agentkit = await AgentKit.from({
       walletProvider,
-      actionProviders: [walletActionProvider(), dexpaprikaActionProvider()],
+      actionProviders: [
+        walletActionProvider(),
+        dexpaprikaActionProvider(),
+        splActionProvider(),
+        jupiterActionProvider(),
+        alloraActionProvider(),
+      ],
     });
 
     const tools = await getLangChainTools(agentkit);
@@ -111,17 +138,7 @@ async function initializeAgent() {
       llm,
       tools,
       checkpointSaver: memory,
-      messageModifier: `
-        You are a helpful agent that can interact onchain on Solana using the Coinbase Developer Platform AgentKit. You are 
-        empowered to interact onchain using your tools. If you ever need funds, you can request them from the 
-        faucet if you are on network ID 'solana-devnet'. If not, you can provide your wallet details and request 
-        funds from the user. Before executing your first action, get the wallet details to see what network 
-        you're on. If there is a 5XX (internal) HTTP error code, ask the user to try again later. If someone 
-        asks you to do something you can't do with your currently available tools, you must say so, and 
-        encourage them to implement it themselves using the CDP SDK + Agentkit, recommend they go to 
-        docs.cdp.coinbase.com for more information. Be concise and helpful with your responses. Refrain from 
-        restating your tools' descriptions unless it is explicitly requested.
-        `,
+      messageModifier: systemMessage,
     });
 
     return { agent, config: agentConfig };
@@ -148,6 +165,38 @@ async function runAutonomousMode(agent: any, config: any, interval = 10) {
       const thought =
         "Be creative and do something interesting on the blockchain. " +
         "Choose an action or set of actions and execute it that highlights your abilities.";
+
+      const stream = await agent.stream({ messages: [new HumanMessage(thought)] }, config);
+
+      for await (const chunk of stream) {
+        if ("agent" in chunk) {
+          console.log(chunk.agent.messages[0].content);
+        } else if ("tools" in chunk) {
+          console.log(chunk.tools.messages[0].content);
+        }
+        console.log("-------------------");
+      }
+
+      await new Promise(resolve => setTimeout(resolve, interval * 1000));
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error("Error:", error.message);
+      }
+      process.exit(1);
+    }
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function runAutonomousInvestorMode(agent: any, config: any, interval = 60) {
+  console.log("Starting autonomous investor mode...");
+  console.log(config.messageModifier);
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      const thought =
+        "Begin loop. Start by fetching 8h SOL price prediction from Allora and comparing it to the average DEX price using Dexpaprika. If prediction is higher, prepare a prompt for a swap of 1 USDC to SOL using Jupiter. Then wait 60 seconds and repeat.";
 
       const stream = await agent.stream({ messages: [new HumanMessage(thought)] }, config);
 
@@ -219,11 +268,11 @@ async function runChatMode(agent: any, config: any) {
 }
 
 /**
- * Choose whether to run in autonomous or chat mode based on user input
+ * Choose whether to run in autonomous, chat or investor mode based on user input
  *
  * @returns Selected mode
  */
-async function chooseMode(): Promise<"chat" | "auto"> {
+async function chooseMode(): Promise<"chat" | "auto" | "investor"> {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -237,6 +286,7 @@ async function chooseMode(): Promise<"chat" | "auto"> {
     console.log("\nAvailable modes:");
     console.log("1. chat    - Interactive chat mode");
     console.log("2. auto    - Autonomous action mode");
+    console.log("3. investor    - Autonomous investor mode");
 
     const choice = (await question("\nChoose a mode (enter number or name): "))
       .toLowerCase()
@@ -248,24 +298,44 @@ async function chooseMode(): Promise<"chat" | "auto"> {
     } else if (choice === "2" || choice === "auto") {
       rl.close();
       return "auto";
+    } else if (choice === "3" || choice === "investor") {
+      rl.close();
+      return "investor";
     }
     console.log("Invalid choice. Please try again.");
   }
 }
+
+const modeConfig = {
+  chat: {
+    systemMessage: generalSystemMessage,
+    run: runChatMode,
+  },
+  auto: {
+    systemMessage: generalSystemMessage,
+    run: runAutonomousMode,
+  },
+  investor: {
+    systemMessage: investorSystemMessage,
+    run: runAutonomousInvestorMode,
+  },
+};
 
 /**
  * Start the chatbot agent
  */
 async function main() {
   try {
-    const { agent, config } = await initializeAgent();
+    //const { agent, config } = await initializeAgent();
     const mode = await chooseMode();
 
-    if (mode === "chat") {
-      await runChatMode(agent, config);
-    } else {
-      await runAutonomousMode(agent, config);
+    const configForMode = modeConfig[mode];
+    if (!configForMode) {
+      throw new Error(`Unknown mode: ${mode}`);
     }
+
+    const { agent, config } = await initializeAgent(configForMode.systemMessage);
+    await configForMode.run(agent, config);
   } catch (error) {
     if (error instanceof Error) {
       console.error("Error:", error.message);
