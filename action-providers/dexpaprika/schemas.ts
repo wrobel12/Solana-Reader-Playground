@@ -9,6 +9,6 @@ export const tokenDetailsSchema = z.object({
   tokenAddress: z.string(),
 });
 
-export const getTopPoolsSchema = z.object({
+export const topPoolsSchema = z.object({
   limit: z.number(),
 });
